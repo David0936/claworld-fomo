@@ -4,7 +4,7 @@
   <p><strong>从首次命中，到退出复盘的本机 Fomo 信号监测工作台</strong></p>
   <p>GMGN 多链初筛 · Windvane 核验 · 100U 策略回放 · 飞书 / Telegram 推送</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.3.1-606AF7" alt="Version 0.3.1">
+    <img src="https://img.shields.io/badge/version-0.4.0-606AF7" alt="Version 0.4.0">
     <img src="https://img.shields.io/badge/Python-标准库-3776AB" alt="Python standard library">
     <img src="https://img.shields.io/badge/runtime-macOS-111111" alt="macOS">
     <img src="https://img.shields.io/badge/trading-仅模拟-80D9B1" alt="Simulation only">
@@ -27,7 +27,7 @@ Claworld Fomo Monitor 把这些步骤连成一条可复盘的本机流程：
 4. 持续记录价格、市值、Fomo 占比和生命周期样本。
 5. 以每个标的 100U 回放多套策略，并按链逐笔计算平台费。
 6. 新信号、风险和策略触发可同时推送至飞书与 Telegram。
-7. 退出主清单后保留价格曲线、样本和模拟账本，用于后续复盘。
+7. 退出主清单后保留价格曲线、样本和模拟账本；曲线可点击查看买入、最高收益模型的分批卖出、清仓与退出监测节点。
 
 ## 当前监测规则
 

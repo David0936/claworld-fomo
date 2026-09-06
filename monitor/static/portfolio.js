@@ -66,12 +66,39 @@ function priceCurve(t){
  const samples=t.samples.filter(s=>Number.isFinite(s.price)),prices=samples.map(s=>s.price),w=760,h=190,p=22;
  const root=el('div','history-chart');
  if(!prices.length)return root;
- const low=Math.min(...prices,t.entry.price*.60),high=Math.max(...prices,t.entry.price),span=high-low||high*.01||1;
- const x=i=>p+(w-p*2)*(samples.length===1?.5:i/(samples.length-1)),y=v=>p+(h-p*2)*(high-v)/span;
- const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.setAttribute('role','img');svg.setAttribute('aria-label',t.name+' 历史价格曲线');
+ const models=t.simulation?.models||[],best=models.reduce((winner,m)=>!winner||m.net_value>winner.net_value?m:winner,null);
+ const clearReasons=new Set(['stop_loss','fomo_below_15','fomo_retention']);
+ const actionNames={recover_principal:'2倍回本卖出',halve_at_4x:'4倍卖出剩余一半',runner_recover:'2.5倍目标回收',stop_loss:'跌幅40%清仓',fomo_below_15:'Fomo低于15%清仓',fomo_retention:'Fomo留存条件清仓'};
+ const markers=[];
+ if(best){
+  for(const tx of best.trades||[]){
+   const kind=tx.type==='buy'?'buy':clearReasons.has(tx.reason)?'clear':'sell';
+   markers.push({kind,time:tx.observed_at||tx.time,price:tx.price,title:tx.type==='buy'?'首次模拟买入':actionNames[tx.reason]||'分批模拟卖出',tx});
+  }
+ }
+ if(t.archive?.archived_at)markers.push({kind:'archive',time:t.archive.archived_at,price:Number.isFinite(t.archive.trigger_price)?t.archive.trigger_price:t.latest.price,title:'退出监测'});
+ const markerPrices=markers.map(m=>m.price).filter(Number.isFinite),low=Math.min(...prices,...markerPrices,t.entry.price*.60),high=Math.max(...prices,...markerPrices,t.entry.price),span=high-low||high*.01||1;
+ const sampleTimes=samples.map(s=>new Date(s.observed_at).getTime()),start=Math.min(...sampleTimes),end=Math.max(...sampleTimes),timeSpan=end-start;
+ const xTime=time=>{const ms=new Date(time).getTime();return p+(w-p*2)*(timeSpan&&Number.isFinite(ms)?Math.max(0,Math.min(1,(ms-start)/timeSpan)):.5);};
+ const x=(s,i)=>timeSpan?xTime(s.observed_at):p+(w-p*2)*(samples.length===1?.5:i/(samples.length-1)),y=v=>p+(h-p*2)*(high-v)/span;
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.setAttribute('role','group');svg.setAttribute('aria-label',t.name+' 历史价格曲线与交易节点');
  const stop=document.createElementNS(svg.namespaceURI,'line');for(const [k,v] of Object.entries({x1:p,x2:w-p,y1:y(t.entry.price*.60),y2:y(t.entry.price*.60)}))stop.setAttribute(k,v);stop.setAttribute('class','stop-line');svg.append(stop);
- const path=document.createElementNS(svg.namespaceURI,'polyline');path.setAttribute('points',samples.map((s,i)=>x(i)+','+y(s.price)).join(' '));path.setAttribute('class','price-line');svg.append(path);root.append(svg);
- const meta=el('div','chart-meta');meta.append(el('span','',`首次 ${fmtPrice(t.entry.price)}`),el('span','',`最高 ${fmtPrice(Math.max(...prices))}`),el('span','',`最低 ${fmtPrice(Math.min(...prices))}`),el('span','',`${samples.length} 个观测点`));root.append(meta);return root;
+ const path=document.createElementNS(svg.namespaceURI,'polyline');path.setAttribute('points',samples.map((s,i)=>x(s,i)+','+y(s.price)).join(' '));path.setAttribute('class','price-line');svg.append(path);
+ const note=el('div','marker-note');note.hidden=true;
+ const showMarker=m=>{
+  note.replaceChildren();note.hidden=false;
+  const top=el('div','marker-note-head');top.append(el('span','marker-note-dot '+m.kind),el('strong','',m.title));
+  const close=el('button','marker-note-close','×');close.type='button';close.setAttribute('aria-label','关闭备注');close.addEventListener('click',()=>note.hidden=true);top.append(close);note.append(top);
+  const details=[new Date(m.time).toLocaleString('zh-CN'),`价格 ${fmtPrice(m.price)}`];
+  if(m.tx){details.push(`模型 ${modelNames[best.id]||best.id}`);details.push(`本笔平台费 ${fmtU(m.tx.fee)}（${(m.tx.effective_fee_rate*100).toFixed(3)}%）`);details.push(m.tx.type==='buy'?`100U 扣费后买入 ${fmtU(m.tx.gross)}`:`卖出毛额 ${fmtU(m.tx.gross)} · 到手 ${fmtU(m.tx.net)}`);}
+  else details.push(t.archive.reason);
+  note.append(el('p','',details.join(' · ')));
+ };
+ const occupied=new Map();
+ markers.forEach(m=>{const baseX=xTime(m.time),baseY=y(m.price),key=Math.round(baseX)+'/'+Math.round(baseY),slot=occupied.get(key)||0;occupied.set(key,slot+1);const offsets=[[0,0],[11,-9],[-11,9],[17,8],[-17,-8]],offset=offsets[slot%offsets.length];const group=document.createElementNS(svg.namespaceURI,'g');group.setAttribute('class','chart-marker marker-'+m.kind);group.setAttribute('role','button');group.setAttribute('tabindex','0');group.setAttribute('aria-label',m.title+'，价格 '+fmtPrice(m.price));group.setAttribute('transform',`translate(${baseX+offset[0]} ${baseY+offset[1]})`);const hit=document.createElementNS(svg.namespaceURI,'circle');hit.setAttribute('r','13');hit.setAttribute('class','marker-hit');const dot=document.createElementNS(svg.namespaceURI,'circle');dot.setAttribute('r','7');dot.setAttribute('class','marker-dot');group.append(hit,dot);group.addEventListener('click',()=>showMarker(m));group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showMarker(m);}});svg.append(group);});
+ root.append(svg);
+ const legend=el('div','chart-legend');for(const [kind,label] of [['buy','买入'],['sell','分批卖出'],['clear','清仓'],['archive','退出监测']]){const item=el('span','');item.append(el('i','legend-dot '+kind),document.createTextNode(label));legend.append(item);}root.append(legend);
+ const meta=el('div','chart-meta');meta.append(el('span','',`复盘模型 ${best?modelNames[best.id]||best.id:'—'}`),el('span','',`模型净值 ${best?fmtU(best.net_value):'—'}`),el('span','',`最高 ${fmtPrice(Math.max(...prices))}`),el('span','',`最低 ${fmtPrice(Math.min(...prices))}`),el('span','',`${samples.length} 个观测点`));root.append(meta,note);return root;
 }
 function renderHistory(){
  if(!portfolioData)return;const rows=portfolioData.history||[],root=$('historyList');root.replaceChildren();$('historyCount').textContent=rows.length;
