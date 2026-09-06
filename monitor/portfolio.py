@@ -121,11 +121,11 @@ def watch_state(observations):
 
 def archive_state(meta, observations, watch):
     """Return the first terminal archive trigger while preserving every observation."""
-    stop_price=meta['price']*.60
+    stop_price=meta['price']*.80
     breach=next((sample for sample in observations if sample['price']<=stop_price),None)
     if breach:
         decline=(breach['price']/meta['price']-1)*100
-        return {'archived':True,'reason':'相对首次合格价下跌达到40%',
+        return {'archived':True,'reason':'相对首次合格价下跌达到20%',
                 'kind':'price_stop','archived_at':breach['observed_at'],
                 'trigger_price':breach['price'],'trigger_change_percent':decline}
     if watch['status']=='removed':

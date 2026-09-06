@@ -57,7 +57,7 @@ class SimulationTests(unittest.TestCase):
                     sample("2026-09-06T00:01:00+00:00", gross / initial_units),
                 ], fee_schedule="solana")
                 model = self.model(result, "hold")
-                if gross / initial_units < entry_price * 0.5:
+                if gross / initial_units <= entry_price * 0.8:
                     trade = model["trades"][1]
                     self.assertAlmostEqual(trade["gross"], gross)
                     self.assertAlmostEqual(trade["fee"], expected_fee)
@@ -218,22 +218,22 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(model["status"], "exited")
         self.assertAlmostEqual(model["trades"][1]["price"], 14.0)
 
-    def test_forty_percent_stop_is_inclusive_and_terminal(self):
+    def test_twenty_percent_stop_is_inclusive_and_terminal(self):
         result = simulate([
             sample("2026-09-06T00:00:00+00:00", 10.0),
-            sample("2026-09-06T00:01:00+00:00", 6.1),
-            sample("2026-09-06T00:02:00+00:00", 6.0),
+            sample("2026-09-06T00:01:00+00:00", 8.1),
+            sample("2026-09-06T00:02:00+00:00", 8.0),
             sample("2026-09-06T00:03:00+00:00", 40.0),
         ])
         for model in result["models"]:
             self.assertEqual(model["status"], "stopped")
             self.assertTrue(model["terminal"])
             self.assertEqual(len(model["trades"]), 2)
-            self.assertAlmostEqual(model["trades"][1]["price"], 6.0)
+            self.assertAlmostEqual(model["trades"][1]["price"], 8.0)
             self.assertAlmostEqual(model["remaining_units"], 0.0)
         at_boundary = simulate([
             sample("2026-09-06T00:00:00+00:00", 10.0),
-            sample("2026-09-06T00:01:00+00:00", 6.1),
+            sample("2026-09-06T00:01:00+00:00", 8.1),
         ])
         self.assertNotEqual(self.model(at_boundary, "hold")["status"], "stopped")
 
