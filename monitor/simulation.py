@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _RATIO_EXIT = 15.0
 _HOLDER_RETENTION = 0.20
-_STOP_MULTIPLE = 0.80
 _RECOVER_MULTIPLE = 2.0
 _RUNNER_MULTIPLE = 2.5
 _HALF_MULTIPLE = 4.0
@@ -228,11 +227,15 @@ class _Ledger:
         self._peak_holders: Optional[float] = None
         self._holder_streak = 0
         self._ratio_streak = 0
+        self._previous_confirmed_price: Optional[float] = None
+        self._lower_price_streak = 0
 
         # Recover2 state.
         self._principal_recovered = False
         self._recovery_index: Optional[int] = None
         self._half_sold = False
+        self._halving_count = 0
+        self._next_halving_multiple = _HALF_MULTIPLE
 
         # Drawdown starts at the post-buy, hypothetical-liquidation value.
         initial_net = self._net_value(entry.price)
@@ -253,16 +256,19 @@ class _Ledger:
             self.trigger_observed_at = sample.observed_at
             self.trigger_price = sample.price
             return True
-        if sample.price > self.entry_price * _STOP_MULTIPLE:
-            return False
-        if self.units > 0:
-            self._sell(sample, self.units, "stop_loss")
-        self.stop_triggered = True
-        self.terminal = True
-        self.terminal_reason = "stop_loss"
-        self.trigger_observed_at = sample.observed_at
-        self.trigger_price = sample.price
-        return True
+        if sample.confirmation:
+            if self._previous_confirmed_price is not None:
+                self._lower_price_streak = self._lower_price_streak + 1 if sample.price < self._previous_confirmed_price else 0
+            self._previous_confirmed_price = sample.price
+            if self._lower_price_streak >= 2:
+                if self.units > 0:
+                    self._sell(sample, self.units, "trend_break")
+                self.terminal = True
+                self.terminal_reason = "trend_break"
+                self.trigger_observed_at = sample.observed_at
+                self.trigger_price = sample.price
+                return True
+        return False
 
     def _sell(self, sample: _Sample, tokens: float, reason: str) -> float:
         if tokens <= 0 or self.units <= 0:
@@ -395,10 +401,14 @@ class _Ledger:
 
         # Even if the recovery observation leaps directly beyond 4x, the 4x
         # sale is required on a later observed sample.
-        if not self._half_sold and self._recovery_index is not None:
-            if index > self._recovery_index and multiple >= _HALF_MULTIPLE:
-                self._sell_fraction_of_remaining(sample, 0.5, "halve_at_4x")
+        if self._recovery_index is not None and index > self._recovery_index:
+            if multiple >= self._next_halving_multiple:
+                target=self._next_halving_multiple
+                self._sell_fraction_of_remaining(sample, 0.5, "halve_at_multiple")
+                self.trades[-1]["target_multiple"]=target
+                self._halving_count += 1
                 self._half_sold = True
+                self._next_halving_multiple *= 2
 
     def _process_runner(self, sample: _Sample) -> None:
         if self.terminal or self._stop_if_needed(sample):
@@ -435,9 +445,9 @@ class _Ledger:
             self._max_drawdown / self._peak_net_value * 100.0
             if self._peak_net_value > 0 else 0.0
         )
-        if self.stop_triggered:
-            status = "stopped"
-            reason = "stop_loss"
+        if self.terminal_reason == "trend_break":
+            status = "exited"
+            reason = "trend_break"
         elif self.terminal_reason == "fomo_below_15":
             status = "exited"
             reason = "fomo_below_15"
@@ -447,7 +457,7 @@ class _Ledger:
         elif self.kind == "recover2":
             if self._half_sold:
                 status = "running"
-                reason = "principal_recovered_then_halved"
+                reason = "principal_recovered_rolling"
             elif self._principal_recovered:
                 status = "running"
                 reason = "principal_recovered"
@@ -515,6 +525,8 @@ class _Ledger:
             result.update({
                 "principal_recovered": self._principal_recovered,
                 "half_sold": self._half_sold,
+                "halving_count": self._halving_count,
+                "next_halving_multiple": self._next_halving_multiple,
                 "target_net": self.principal,
             })
         elif self.kind == "runner":

@@ -57,20 +57,10 @@ class SimulationTests(unittest.TestCase):
                     sample("2026-09-06T00:01:00+00:00", gross / initial_units),
                 ], fee_schedule="solana")
                 model = self.model(result, "hold")
-                if gross / initial_units <= entry_price * 0.8:
-                    trade = model["trades"][1]
-                    self.assertAlmostEqual(trade["gross"], gross)
-                    self.assertAlmostEqual(trade["fee"], expected_fee)
-                    self.assertAlmostEqual(trade["net"], gross - expected_fee)
-                    self.assertAlmostEqual(
-                        trade["effective_fee_rate"], expected_fee / gross
-                    )
-                else:
-                    self.assertAlmostEqual(model["remaining_gross_value"], gross)
-                    self.assertAlmostEqual(
-                        model["hypothetical_remaining_liquidation_fee"],
-                        expected_fee,
-                    )
+                self.assertAlmostEqual(model["remaining_gross_value"], gross)
+                self.assertAlmostEqual(
+                    model["hypothetical_remaining_liquidation_fee"], expected_fee,
+                )
 
         tiny = engine_simulate(
             [sample("2026-09-06T00:00:00+00:00", 10.0)],
@@ -166,6 +156,20 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(len(staged_model["trades"]), 3)
         self.assertTrue(staged_model["half_sold"])
 
+    def test_recover2_halves_again_at_each_observed_doubling(self):
+        result = simulate([
+            sample("2026-09-06T00:00:00+00:00", 10.0),
+            sample("2026-09-06T00:01:00+00:00", 20.0),
+            sample("2026-09-06T00:02:00+00:00", 40.0),
+            sample("2026-09-06T00:03:00+00:00", 80.0),
+            sample("2026-09-06T00:04:00+00:00", 160.0),
+        ])
+        model = self.model(result, "recover2")
+        sells=[t for t in model["trades"] if t["type"]=="sell"]
+        self.assertEqual([t.get("target_multiple") for t in sells[1:]],[4.0,8.0,16.0])
+        self.assertEqual(model["halving_count"],3)
+        self.assertEqual(model["next_halving_multiple"],32.0)
+
     def test_runner_100_and_110_fractions(self):
         result = simulate([
             sample("2026-09-06T00:00:00+00:00", 10.0),
@@ -218,24 +222,28 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(model["status"], "exited")
         self.assertAlmostEqual(model["trades"][1]["price"], 14.0)
 
-    def test_twenty_percent_stop_is_inclusive_and_terminal(self):
+    def test_two_confirmed_lower_prices_exit_trend_models(self):
         result = simulate([
             sample("2026-09-06T00:00:00+00:00", 10.0),
-            sample("2026-09-06T00:01:00+00:00", 8.1),
-            sample("2026-09-06T00:02:00+00:00", 8.0),
-            sample("2026-09-06T00:03:00+00:00", 40.0),
+            sample("2026-09-06T00:01:00+00:00", 6.0),
+            sample("2026-09-06T00:02:00+00:00", 7.0),
+            sample("2026-09-06T00:03:00+00:00", 6.5),
+            sample("2026-09-06T00:04:00+00:00", 6.0),
+            sample("2026-09-06T00:05:00+00:00", 40.0),
         ])
         for model in result["models"]:
-            self.assertEqual(model["status"], "stopped")
+            self.assertEqual(model["status"], "exited")
             self.assertTrue(model["terminal"])
             self.assertEqual(len(model["trades"]), 2)
-            self.assertAlmostEqual(model["trades"][1]["price"], 8.0)
+            self.assertEqual(model["trades"][1]["reason"], "trend_break")
+            self.assertAlmostEqual(model["trades"][1]["price"], 6.0)
             self.assertAlmostEqual(model["remaining_units"], 0.0)
-        at_boundary = simulate([
+        recovered = simulate([
             sample("2026-09-06T00:00:00+00:00", 10.0),
-            sample("2026-09-06T00:01:00+00:00", 8.1),
+            sample("2026-09-06T00:01:00+00:00", 5.0),
+            sample("2026-09-06T00:02:00+00:00", 11.0),
         ])
-        self.assertNotEqual(self.model(at_boundary, "hold")["status"], "stopped")
+        self.assertFalse(self.model(recovered, "hold")["terminal"])
 
     def test_confirmed_fomo_below_fifteen_exits_every_model_immediately(self):
         result = simulate([

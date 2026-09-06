@@ -20,6 +20,8 @@ def connect():
     CREATE TABLE IF NOT EXISTS tokens (id TEXT PRIMARY KEY, metadata TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS samples (token_id TEXT NOT NULL, observed_at TEXT NOT NULL,
       payload TEXT NOT NULL, PRIMARY KEY(token_id,observed_at));
+    CREATE TABLE IF NOT EXISTS archives (
+      token_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS deliveries (
       event_id TEXT NOT NULL, channel TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
       attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0,

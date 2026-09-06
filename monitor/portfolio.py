@@ -121,13 +121,15 @@ def watch_state(observations):
 
 def archive_state(meta, observations, watch):
     """Return the first terminal archive trigger while preserving every observation."""
-    stop_price=meta['price']*.80
-    breach=next((sample for sample in observations if sample['price']<=stop_price),None)
-    if breach:
-        decline=(breach['price']/meta['price']-1)*100
-        return {'archived':True,'reason':'相对首次合格价下跌达到20%',
-                'kind':'price_stop','archived_at':breach['observed_at'],
-                'trigger_price':breach['price'],'trigger_change_percent':decline}
+    confirmed=[sample for sample in observations if sample.get('confirmation')]
+    lower_streak=0
+    for previous,current in zip(confirmed,confirmed[1:]):
+        lower_streak=lower_streak+1 if current['price']<previous['price'] else 0
+        if lower_streak>=2:
+            decline=(current['price']/meta['price']-1)*100
+            return {'archived':True,'reason':'连续2个确认轮次收低，上升趋势未恢复',
+                    'kind':'trend_break','archived_at':current['observed_at'],
+                    'trigger_price':current['price'],'trigger_change_percent':decline}
     if watch['status']=='removed':
         return {'archived':True,'reason':watch['reason'] or '连续3轮不再符合筛选规则',
                 'kind':'eligibility','archived_at':observations[-1]['observed_at'],
@@ -151,6 +153,7 @@ def report(buy_fee=.06,sell_fee=.06,official=True):
     with connect() as db:
         tokens=[(r['id'],json.loads(r['metadata'])) for r in db.execute('SELECT * FROM tokens')]
         samples=[(r['token_id'],json.loads(r['payload'])) for r in db.execute('SELECT * FROM samples')]
+        archives={r['token_id']:json.loads(r['payload']) for r in db.execute('SELECT * FROM archives')}
     rows=[];history=[]
     for tid,meta in tokens:
         observations=sorted([p for key,p in samples if key==tid],key=lambda p:timestamp(p['observed_at'])[1])
@@ -158,7 +161,12 @@ def report(buy_fee=.06,sell_fee=.06,official=True):
         result=simulate(observations,principal=100,buy_fee=buy_fee,sell_fee=sell_fee,fee_schedule=profile['schedule'] if official else None)
         latest=observations[-1]
         watch=watch_state(observations)
-        archive=archive_state(meta,observations,watch)
+        archive_record=archives.get(tid)
+        archive={k:v for k,v in archive_record.items() if k!='simulation'} if archive_record else archive_state(meta,observations,watch)
+        if archive['archived'] and not archive_record:
+            archive_record=dict(archive,simulation=result)
+            with connect() as db:db.execute('INSERT OR IGNORE INTO archives VALUES (?,?)',(tid,json.dumps(archive_record,ensure_ascii=False)))
+        if archive_record and archive_record.get('simulation'):result=archive_record['simulation']
         fomo_exit=fomo_exit_state(observations)
         row={'id':tid,'name':meta['name'],'chain':meta['chain'],'ca':meta['ca'],'entry':meta,
                      'latest':latest,'awaiting_sample':len(observations)==1,'stale':time.time()-timestamp(latest['observed_at'])[1]>7200,

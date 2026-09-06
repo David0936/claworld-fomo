@@ -1,6 +1,6 @@
 /* Retrospective comparison of recorded prices only. No trading actions. */
 let portfolioData=null,portfolioKey='',portfolioBusy=false,portfolioOpen=new Set();
-const modelNames={hold:'模型1 · Fomo 留存持有',recover2:'模型2 · 2倍回本 / 4倍减半',runner25:'模型3A · 2.5倍净收100U',runner25_110:'模型3B · 2.5倍净收110U'};
+const modelNames={hold:'模型1 · Fomo 留存持有',recover2:'模型2 · 2倍回本 / 4×8×16×滚仓',runner25:'模型3A · 2.5倍净收100U',runner25_110:'模型3B · 2.5倍净收110U'};
 const fmtU=n=>Number.isFinite(n)?n.toFixed(2)+' U':'—';
 const fmtPrice=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumSignificantDigits:6}):'—';
 const fmtPct=n=>Number.isFinite(n)?(n>0?'+':'')+n.toFixed(1)+'%':'—';
@@ -67,22 +67,21 @@ function priceCurve(t){
  const root=el('div','history-chart');
  if(!prices.length)return root;
  const models=t.simulation?.models||[],best=models.reduce((winner,m)=>!winner||m.net_value>winner.net_value?m:winner,null);
- const clearReasons=new Set(['stop_loss','fomo_below_15','fomo_retention']);
- const actionNames={recover_principal:'2倍回本卖出',halve_at_4x:'4倍卖出剩余一半',runner_recover:'2.5倍目标回收',stop_loss:'跌幅20%强制止损',fomo_below_15:'Fomo低于15%清仓',fomo_retention:'Fomo留存条件清仓'};
+ const clearReasons=new Set(['trend_break','stop_loss','fomo_below_15','fomo_retention']);
+ const actionNames={recover_principal:'2倍回本卖出',halve_at_multiple:'倍数阶梯卖出剩余一半',runner_recover:'2.5倍目标回收',trend_break:'上升趋势确认失效清仓',stop_loss:'旧规则止损清仓',fomo_below_15:'Fomo低于15%清仓',fomo_retention:'Fomo留存条件清仓'};
  const markers=[];
  if(best){
   for(const tx of best.trades||[]){
    const kind=tx.type==='buy'?'buy':clearReasons.has(tx.reason)?'clear':'sell';
-   markers.push({kind,time:tx.observed_at||tx.time,price:tx.price,title:tx.type==='buy'?'首次模拟买入':actionNames[tx.reason]||'分批模拟卖出',tx});
+   const title=tx.reason==='halve_at_multiple'?`${tx.target_multiple}倍卖出剩余一半`:tx.type==='buy'?'洗盘回升确认买入':actionNames[tx.reason]||'分批模拟卖出';markers.push({kind,time:tx.observed_at||tx.time,price:tx.price,title,tx});
   }
  }
  if(t.archive?.archived_at)markers.push({kind:'archive',time:t.archive.archived_at,price:Number.isFinite(t.archive.trigger_price)?t.archive.trigger_price:t.latest.price,title:'退出监测'});
- const markerPrices=markers.map(m=>m.price).filter(Number.isFinite),low=Math.min(...prices,...markerPrices,t.entry.price*.80),high=Math.max(...prices,...markerPrices,t.entry.price),span=high-low||high*.01||1;
+ const markerPrices=markers.map(m=>m.price).filter(Number.isFinite),low=Math.min(...prices,...markerPrices),high=Math.max(...prices,...markerPrices,t.entry.price),span=high-low||high*.01||1;
  const sampleTimes=samples.map(s=>new Date(s.observed_at).getTime()),start=Math.min(...sampleTimes),end=Math.max(...sampleTimes),timeSpan=end-start;
  const xTime=time=>{const ms=new Date(time).getTime();return p+(w-p*2)*(timeSpan&&Number.isFinite(ms)?Math.max(0,Math.min(1,(ms-start)/timeSpan)):.5);};
  const x=(s,i)=>timeSpan?xTime(s.observed_at):p+(w-p*2)*(samples.length===1?.5:i/(samples.length-1)),y=v=>p+(h-p*2)*(high-v)/span;
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.setAttribute('role','group');svg.setAttribute('aria-label',t.name+' 历史价格曲线与交易节点');
- const stop=document.createElementNS(svg.namespaceURI,'line');for(const [k,v] of Object.entries({x1:p,x2:w-p,y1:y(t.entry.price*.80),y2:y(t.entry.price*.80)}))stop.setAttribute(k,v);stop.setAttribute('class','stop-line');svg.append(stop);
  const path=document.createElementNS(svg.namespaceURI,'polyline');path.setAttribute('points',samples.map((s,i)=>x(s,i)+','+y(s.price)).join(' '));path.setAttribute('class','price-line');svg.append(path);
  const note=el('div','marker-note');note.hidden=true;
  const showMarker=m=>{
@@ -105,7 +104,7 @@ function renderHistory(){
  if(!rows.length){root.append(el('div','empty','暂无退出主清单的标的'));return;}
  for(const t of rows){
   const card=el('article','history-card'),head=el('div','history-head'),identity=el('div');identity.append(el('h2','',t.name),el('p','',t.chain+' · '+t.ca));
-  const change=t.archive.trigger_change_percent;head.append(identity,el('span','history-reason',t.archive.kind==='price_stop'?'20%止损 '+fmtPct(change):'资格退出'));card.append(head,priceCurve(t));
+  const change=t.archive.trigger_change_percent,archiveLabel=t.archive.kind==='trend_break'?'趋势退出 '+fmtPct(change):t.archive.kind==='price_stop'?'旧止损 '+fmtPct(change):'资格退出';head.append(identity,el('span','history-reason',archiveLabel));card.append(head,priceCurve(t));
   const note=el('p','history-note',t.archive.reason+' · '+new Date(t.archive.archived_at).toLocaleString('zh-CN')+' · 记录与模拟数据均保留');card.append(note);
   const detail=el('details','history-detail');detail.append(el('summary','','查看完整模拟账本与观测记录'),tokenDetail(t));card.append(detail);root.append(card);
  }
@@ -117,7 +116,7 @@ function tokenDetail(t){
  for(const m of t.simulation.models){
   const card=el('section','model-box');card.append(el('h4','',modelNames[m.id]||m.id),el('strong',m.pnl>=0?'profit':'loss',signedU(m.pnl)));
   for(const [label,value] of [['已回收净现金',fmtU(m.cash)],['剩余代币',m.remaining_percent.toFixed(2)+'%'],['剩余仓位市值',fmtU(m.remaining_gross_value)],['已扣平台费用',fmtU(m.paid_fees)],['剩余仓位预估平台费',fmtU(m.liquidation_fee)],['平台费后估算总值',fmtU(m.net_value)]]){const line=el('div','model-line');line.append(el('span','',label),el('b','',value));card.append(line);}
-  card.append(el('p','fee-explainer',({stop_loss:'已按20%强制止损线清仓退出',fomo_below_15:'Fomo 确认低于15%，已按当次观测价清仓全部',fomo_retention:'连续两次留存条件成立，已退出',principal_recovered_then_halved:'已回本，并在后续4倍观测减半',principal_recovered:'已净收回100U，等待后续4倍',principal_recovery_unreachable:'费用过高，当前仓位不足以净回本',runner_recover_100:'已净收100U，剩余仓位继续持有',runner_recover_110:'已净收110U，剩余仓位继续持有',runner_recovery_unreachable:'费用过高，当前仓位不足以完成回收',no_2x_observed:'尚未观测到2倍',no_2_5x_observed:'尚未观测到2.5倍',no_exit_trigger:'尚未满足退出条件'})[m.reason]||m.status));
+  card.append(el('p','fee-explainer',({trend_break:'连续两个确认轮次收低，趋势未恢复，已清仓',stop_loss:'旧规则止损结果已冻结保留',fomo_below_15:'Fomo 确认低于15%，已按当次观测价清仓全部',fomo_retention:'连续两次留存条件成立，已退出',principal_recovered_rolling:`已回本并完成${m.halving_count||0}次减半，下一档${m.next_halving_multiple||'—'}倍`,principal_recovered:'已净收回100U，等待后续4倍',principal_recovery_unreachable:'费用过高，当前仓位不足以净回本',runner_recover_100:'已净收100U，剩余仓位继续持有',runner_recover_110:'已净收110U，剩余仓位继续持有',runner_recovery_unreachable:'费用过高，当前仓位不足以完成回收',no_2x_observed:'尚未观测到2倍',no_2_5x_observed:'尚未观测到2.5倍',no_exit_trigger:'尚未满足退出条件'})[m.reason]||m.status));
   const trades=el('details');trades.append(el('summary','', '逐笔模拟交易 · '+m.trades.length+' 笔'));
   for(const tx of m.trades){const p=el('div','trade-item');p.textContent=(tx.type==='buy'?'买入':tx.type==='sell'?'卖出':tx.type)+' · '+tx.time+'\n价格 '+fmtPrice(tx.price)+' / 平台费 '+fmtU(tx.fee)+'（'+(tx.effective_fee_rate*100).toFixed(3)+'%）'+' / 净额 '+fmtU(tx.net);trades.append(p);}card.append(trades);grid.append(card);
  }

@@ -42,16 +42,21 @@ class PortfolioTests(unittest.TestCase):
   self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,False,'r2'),point(3,False,'r3')])['status'],'removed')
   self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,True,'r2')])['ineligible_streak'],0)
 
- def test_twenty_percent_decline_moves_token_to_history_with_samples(self):
+ def test_two_confirmed_lower_rounds_move_token_to_history_with_samples(self):
   portfolio.register(self.base)
-  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T02:00:00+08:00',price=.81,source='gmgn'))
+  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T02:00:00+08:00',price=.81,source='gmgn',confirmation=True))
   self.assertEqual(len(portfolio.report()['tokens']),1)
-  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T03:00:00+08:00',price=.80,source='gmgn'))
+  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T04:00:00+08:00',price=.60,source='gmgn',confirmation=True))
   report=portfolio.report()
   self.assertEqual(report['tokens'],[])
   self.assertEqual(len(report['history']),1)
-  self.assertEqual(report['history'][0]['archive']['kind'],'price_stop')
+  self.assertEqual(report['history'][0]['archive']['kind'],'trend_break')
   self.assertEqual(len(report['history'][0]['samples']),3)
+  archived_value=report['history'][0]['simulation']['models'][0]['net_value']
+  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T06:00:00+08:00',price=3,source='gmgn',confirmation=True))
+  frozen=portfolio.report()['history'][0]
+  self.assertEqual(frozen['simulation']['models'][0]['net_value'],archived_value)
+  self.assertEqual(len(frozen['samples']),4)
 
  def test_confirmed_fomo_exit_state_is_persistent(self):
   points=[dict(observed_at='2026-09-05T01:00:00+08:00',price=1,source='windvane',fomo_ratio_lower=14,fomo_ratio_upper=16),
