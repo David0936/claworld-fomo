@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.5.1 - 2026-09-06
+
+- 将完整 `fomo-signal-tracker` Skill、references、策略脚本和 Codex 元数据纳入仓库。
+- 增加 Codex、Claude Code、WorkBuddy 与通用 Agents 一键安装脚本和独立安装指南。
+
 ## 0.5.0 - 2026-09-06
 
 - 恢复“洗盘回踩后重新上涨”才登记模拟买入的三轮入场确认，限制回升价不超过首次候选价10%。

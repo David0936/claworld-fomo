@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fomo 全链信号跟踪"
+  short_description: "筛选 Fomo 信号并持续复盘价格生命周期"
+  default_prompt: "Use $fomo-signal-tracker to scan qualified tokens, verify Fomo holdings, and maintain lifecycle tracking records."

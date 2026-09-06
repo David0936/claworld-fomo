@@ -4,7 +4,7 @@
   <p><strong>从首次命中，到退出复盘的本机 Fomo 信号监测工作台</strong></p>
   <p>GMGN 多链初筛 · Windvane 核验 · 100U 策略回放 · 飞书 / Telegram 推送</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.5.0-606AF7" alt="Version 0.5.0">
+    <img src="https://img.shields.io/badge/version-0.5.1-606AF7" alt="Version 0.5.1">
     <img src="https://img.shields.io/badge/Python-标准库-3776AB" alt="Python standard library">
     <img src="https://img.shields.io/badge/runtime-macOS-111111" alt="macOS">
     <img src="https://img.shields.io/badge/trading-仅模拟-80D9B1" alt="Simulation only">
@@ -82,6 +82,19 @@ http://127.0.0.1:8765/
 
 关闭网页不会停止后台推送。电脑关机、主动睡眠或退出系统后无法继续监测；Codex 与所需行情网站应保持可用和登录状态。
 
+## 安装自动监测 Skill
+
+自动化使用的完整 Skill 已随仓库发布：[`skills/fomo-signal-tracker`](skills/fomo-signal-tracker)。它包含 GMGN/Windvane 核验流程、洗盘回升入场、趋势退出、100U回本滚仓以及记录结构。
+
+同时安装到 Codex、Claude Code、WorkBuddy 和通用 Agents：
+
+```bash
+chmod +x install-agent-skill.sh
+./install-agent-skill.sh all
+```
+
+也可以只安装一个平台，例如 `./install-agent-skill.sh codex` 或 `./install-agent-skill.sh workbuddy`。目标目录、手动安装方式、调用提示词和定时任务说明见 [Agent Skill 安装指南](AGENT_INSTALL.md)。
+
 ## 飞书与 Telegram
 
 工作台的“消息连接”页面可以同时启用两个通道，每个通道独立记录发送状态和失败重试。
@@ -153,6 +166,8 @@ flowchart LR
 - LaunchAgent：`~/Library/LaunchAgents/club.local.fomo-monitor.plist`
 - 自动化对接：[monitor/INTEGRATION.md](monitor/INTEGRATION.md)
 - 可复用监测提示词：[monitor/automation](monitor/automation)
+- Agent Skill 源码：[skills/fomo-signal-tracker](skills/fomo-signal-tracker)
+- 多 Agent 安装指南：[AGENT_INSTALL.md](AGENT_INSTALL.md)
 
 配置、凭证、数据库和服务日志均在 `.gitignore` 中，不应提交到公开仓库。不要把本机8765端口转发到公网。
 
