@@ -1,79 +1,182 @@
-# Fomo 本机监控台
+<div align="center">
+  <img src="monitor/static/assets/brand-logo.png" width="112" alt="Claworld Fomo Monitor Logo">
+  <h1>Claworld Fomo Monitor</h1>
+  <p><strong>从首次命中，到退出复盘的本机 Fomo 信号监测工作台</strong></p>
+  <p>GMGN 多链初筛 · Windvane 核验 · 100U 策略回放 · 飞书 / Telegram 推送</p>
+  <p>
+    <img src="https://img.shields.io/badge/version-0.3.1-606AF7" alt="Version 0.3.1">
+    <img src="https://img.shields.io/badge/Python-标准库-3776AB" alt="Python standard library">
+    <img src="https://img.shields.io/badge/runtime-macOS-111111" alt="macOS">
+    <img src="https://img.shields.io/badge/trading-仅模拟-80D9B1" alt="Simulation only">
+  </p>
+</div>
 
-[![GitHub](https://img.shields.io/badge/GitHub-claworld--fomo-606AF7)](https://github.com/David0936/claworld-fomo)
+> 这是一个运行在个人电脑上的观察工具。它记录真实核验结果、模拟策略和消息投递，不连接钱包，也不执行真实交易。
 
-打开 http://127.0.0.1:8765。Python 标准库实现，无需安装第三方依赖。
+![Fomo Monitor 信号总览](docs/assets/workbench-overview.png)
 
-双击项目根目录「打开Fomo监控台.command」打开页面。已配置 macOS 登录启动服务时，关闭网页不影响推送；退出系统、电脑睡眠或关机后不能继续执行。Codex 与行情浏览器需保持开启和登录。
+## 它解决什么问题
 
-## 飞书与 Telegram 接入
+热点代币变化很快，单次截图很难回答三个问题：它何时首次符合规则、之后发生了什么、按既定策略现在结果怎样。
 
-连接方式对齐旧工具 [Claworld Monitor](https://github.com/David0936/claworld-x-monitor)：飞书使用自定义机器人 Webhook + 可选签名密钥；Telegram 使用 Bot Token + Chat ID。两个通道可以同时启用。
+Claworld Fomo Monitor 把这些步骤连成一条可复盘的本机流程：
 
-飞书群推送：飞书群 → 设置 → 群机器人 → 添加自定义机器人 → 将 Webhook 填入页面。如果开启签名校验，同时填写签名密钥；如果开启关键词校验，应允许“Fomo”。点击保存，再点击“测试飞书推送”。这种方式无需 App ID、App Secret 或账号 OAuth 登录。
+1. 从 GMGN 多链热搜寻找候选。
+2. 使用 Windvane 按完整 CA 核验 Fomo 持仓。
+3. 为首次合格标的建立不可覆盖的价格基线。
+4. 持续记录价格、市值、Fomo 占比和生命周期样本。
+5. 以每个标的 100U 回放多套策略，并按链逐笔计算平台费。
+6. 新信号、风险和策略触发可同时推送至飞书与 Telegram。
+7. 退出主清单后保留价格曲线、样本和模拟账本，用于后续复盘。
 
-Telegram：找 @BotFather 创建机器人并取得 Bot Token，填入并保存。私聊接收可点击“Telegram 登录 / 绑定本人”，打开生成的机器人链接，在 Telegram 中点击 Start，再回到网页点击“完成验证”。系统只接受该次随机验证码对应的近期私聊消息，并自动绑定发送人的 Chat ID。此功能是通过机器人验证 Telegram 账号并登录本机工作台，不是 Telegram 网站 OAuth；无需公开域名或网页回调地址。验证链接10分钟有效，请勿分享。
+## 当前监测规则
 
-如果已有旧工具的 Chat ID，可以直接填写。群聊填写负数 Chat ID；频道可填 @频道用户名，并确保机器人有发送权限。仅填 Bot Token 不能自动向你发送私信，需要主动开始会话或填写可用接收会话。机器人已配置 Webhook、被其他程序消费更新或积压太多消息时，验证登录可能无法取到本次消息，请手动填 Chat ID；本程序不会清空机器人更新或删除现有 Webhook。
+| 阶段 | 条件 | 工作台行为 |
+|---|---|---|
+| 首次进入 | 创建 1–7 天、市值 20万–50万美元、Fomo 持仓下界 ≥15% | 登记首次合格价并高亮最新入选 |
+| 观察信号 | Fomo 持仓 15%–20% | 进入观察清单 |
+| 强信号 | Fomo 持仓 >20% | 标记强信号 |
+| Fomo 退出 | 后续区间上界确认低于15% | 整行标红；全部模拟策略按首次触发价清仓剩余仓位 |
+| 价格退出 | 相对首次合格价下跌达到40% | 立即停止重点跟踪并转入“过往监测” |
+| 资格变化 | 年龄、市值或 Fomo 资格不再符合 | 连续3个有效核验轮次不符合后转入“过往监测” |
+| 数据受阻 | 登录、配额、来源故障或关键数据缺失 | 不推进失败轮次，避免误移出 |
 
-“测试飞书推送”和“测试 Telegram 推送”分别测试对应通道。消息记录显示每个通道独立的成功/失败；仅重试失败通道，已成功的通道不会因另一通道失败而重发。发送目标在该事件第一次进入投递流程时确定；后来新增通道不会自动重放已发送事件。暂停某通道会保留它已有的待发送记录，恢复后继续发送。
+Windvane 区间跨越15%时视为不确定，不触发清仓信号。所有退出都只改变展示和模拟状态，不删除 SQLite、事件或 Markdown 历史。
 
-高级设置保留飞书账号登录与个人推送：在 https://open.feishu.cn/app 创建企业自建应用，启用机器人，申请 `im:message:send_as_bot`，配置回调地址 `http://127.0.0.1:8765/auth/callback`，发布并将本人加入应用可用范围。在高级设置填写 App ID / App Secret，保存并登录。已配置群 Webhook 时优先发群。
+## 过往监测与复盘
 
-此页面只在本机监听，操作系统登录用户可管理本地连接；不是面向公网的多用户网站。不要将8765端口转发到公网。
+![Fomo Monitor 过往监测曲线](docs/assets/watch-history.png)
 
-## 执行方式与可用性
+“过往监测”独立保存：
 
-- 原 Codex 自动化负责 GMGN 多链热搜和 Windvane 实际核验，5分钟请求运行一次；受任务执行时长、Codex调度及平台配额影响，并非精确5分钟一次。沿用 Codex 的账户额度。
-- 网页每5秒读取已生成结果，不会单凭页面刷新声称查询了行情。
-- 按钮将即时核验请求加入原 Codex 任务队列，以扫描状态及实际观测时间判断是否完成。
-- 新命中经过后端阈值二次检查，立刻写入 SQLite 队列，后台每2秒检查待发队列，网络请求耗时可能延长实际间隔。既有生命周期及模拟策略仍每2小时采样。
-- 工作台高亮最新进入清单的标的；相对首次合格价下跌达到40%时立即转入“过往监测”，资格变化则连续3个有效核验轮次不符合后转入。历史价格曲线、样本、账本和档案仍保留。
-- 首次合格后，Fomo 持仓占比经 Windvane 确认低于15%时整行标红，所有100U模拟策略按该次观测价清仓剩余仓位并计入卖出费。
-- 同一事件ID只入队一次；网络失败指数退避，最长5分钟后重试。平台已收但响应丢失时可能重发，属于至少一次投递，事件编号可用于识别重复。
-- 未配置任何消息通道时事件保留；配置后会补发待发送事件，保留原观测时间。测试消息明确标记为测试。
-- 历史 Markdown 档案只展示，不自动转换成“新命中”。
-- 页面超过20分钟没有扫描状态更新会标为数据过期。运行失败/登录过期/查询额度不足由监测任务报告。
+- 首次、最高、最低和最后观测价格
+- 非连续行情的全部真实采样点
+- 40%价格退出线和触发时间
+- 四个100U策略分支的模拟交易、剩余仓位和逐笔平台费
+- 原始 CA、链、数据来源和观测备注
 
-## 维护
+## 三步在本机运行
 
-运行文件和数据位于 `~/Library/Application Support/FomoMonitor/`，避免后台服务受 Documents 目录访问限制。配置在 `~/Library/Application Support/FomoMonitor/data/config.json`，权限600，不要公开。队列为 `~/Library/Application Support/FomoMonitor/data/monitor.sqlite3`。不要将 data 目录提交到版本库。
+### 1. 获取项目
 
-测试：在 monitor 目录运行 `python3 -m unittest discover -v`。所有发送测试均使用 mock，真实飞书与 Telegram 收件需在配置凭证后通过页面测试按钮验证。
+```bash
+git clone https://github.com/David0936/claworld-fomo.git
+cd claworld-fomo
+```
 
-服务：`~/Library/LaunchAgents/club.local.fomo-monitor.plist`。暂停服务可执行 `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/club.local.fomo-monitor.plist`；重新加载用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/club.local.fomo-monitor.plist`。服务退出自动重启，登录自动加载。只防止系统空闲睡眠，不改变关机、合盖或用户主动睡眠行为。
+### 2. 安装本机服务
 
-源码更新后执行 `python3 monitor/install.py` 将代码同步到常驻服务并重启。监测任务每次写入扫描状态时同步历史档案到服务的数据目录。
+```bash
+python3 monitor/install.py
+```
 
-工作台每6小时读取 GitHub 仓库的 `VERSION` 检查更新，也可以在“消息连接 → 项目与更新”中手动检查。检查只比较语义化版本并提示，不会自动下载或覆盖本机代码、数据库与连接凭证。安装新版本前阅读 [CHANGELOG.md](CHANGELOG.md)，拉取源码后重新执行安装脚本。
+安装脚本会将运行文件部署到 `~/Library/Application Support/FomoMonitor/`，创建 macOS LaunchAgent，并启动只监听本机的服务。
 
-原自动化对接说明见 [monitor/INTEGRATION.md](monitor/INTEGRATION.md)，可公开复用的周期任务提示词见 [monitor/automation](monitor/automation)。
+### 3. 打开工作台
 
-Telegram 长文会按4096字符分段。中途某段失败后再次尝试，已成功的前段可能重复；事件编号和原观测时间会保留。
+双击 `打开Fomo监控台.command`，或访问：
 
-## 品牌界面与本地入口
+```text
+http://127.0.0.1:8765/
+```
 
-新版采用用户上传 Logo 与 Fomo 官方配色，提供信号总览、监测档案、消息连接三个视图。信号列表可按强信号/观察/待发送筛选，支持名称或 CA 搜索、复制完整 CA、展开原始核验详情。数字为首次观测值，不是实时行情。
+关闭网页不会停止后台推送。电脑关机、主动睡眠或退出系统后无法继续监测；Codex 与所需行情网站应保持可用和登录状态。
 
-双击项目根目录 `Fomo 本地监控台.html`，再点击“打开本地监控台”。该文件内嵌Logo和样式，无外部字体或图片依赖；实际功能由现有本机后台提供。三个阅读密度选项会在浏览器中记住。旧版界面备份位于 `monitor/design-v1/`。
+## 飞书与 Telegram
 
+工作台的“消息连接”页面可以同时启用两个通道，每个通道独立记录发送状态和失败重试。
 
-## 100U 模拟观察表
+### 飞书群机器人
 
-参见 [monitor/PORTFOLIO.md](monitor/PORTFOLIO.md)。每个标的从首次核验合格的观测价独立投入100U，回放三套策略（模型3含100U/110U两分支），逐笔扣买卖成本。按各标的所在链和每笔交易金额计算官方平台费；额外费用未核验时不冒充实测总成本。已付费用与剩余仓位预估卖出费分开展示。无后续报价时显示待采样，不计入当前收益汇总。历史50U日志保留，页面为独立100U回放账本。
+1. 飞书群 → 设置 → 群机器人 → 添加自定义机器人。
+2. 将 Webhook 粘贴到工作台。
+3. 如启用签名校验，同时填写签名密钥。
+4. 保存并点击“测试飞书推送”。
 
+群机器人方式无需 App ID、App Secret 或 OAuth。高级设置仍保留企业自建应用登录与个人推送。
 
-## 当前费用规则（取代此前统一6%假设）
+### Telegram
 
-按每个标的所在链采用当前官方平台手续费规则（2026-09-06核查：https://help.fomo.family/en/articles/14436214-trading-fees-on-fomo）：BSC/BNB、Robinhood、Base、Monad、Ethereum每笔0.5%，网络费另计；Solana单笔<5U固定0.10U、5–47.5U为2%、47.5–190U固定0.95U、≥190U为0.5%，Solana网络费由平台承担。每次分批卖出按实际模拟卖出金额重新计费，回本按平台费后净收金额反解。未核验的网络费、代币买卖税、池费、滑点及价格冲击不能宣称已计入，也不能标为实测0。未验证邀请码或特殊代币优惠时不应用优惠。展示为平台费后估算收益，非全部费用后的真实盈亏。
-采样时逐个检查该关注对象可见的费用信息；将官方规则、网络费/买卖税是否可核验及来源URL写入sample.note，未知明确写未知，严禁使用买入/卖出按钮执行交易来核验。页面默认由引擎按链和逐笔金额计算平台费；其他费用没有可靠证据时单列未计入。
+1. 通过 [@BotFather](https://t.me/BotFather) 创建机器人并取得 Bot Token。
+2. 在工作台保存 Token。
+3. 点击“Telegram 登录 / 绑定本人”。
+4. 打开机器人、点击 Start，再回到工作台完成验证。
+
+也可以直接填写 Chat ID。私聊使用数字 ID，群聊通常是负数 ID，频道可使用 `@频道用户名`。
+
+## 100U 模拟策略
+
+每个标的从首次完整核验合格点独立投入100U。三个模型平行计算，不能把它们的本金或收益相加。
+
+| 模型 | 规则 |
+|---|---|
+| 模型1 · Fomo 留存 | 按 Fomo 留存条件观察退出 |
+| 模型2 · 2倍回本 | 首次观察到2倍时净收回100U；后续观察到4倍时卖出剩余仓位的一半 |
+| 模型3A · 2.5倍滚动 | 首次观察到2.5倍时净收回100U，其余继续观察 |
+| 模型3B · 2.5倍滚动 | 首次观察到2.5倍时净收回110U，其余继续观察 |
+
+任何模型只使用当时已经记录的数据，不用之后行情倒填此前未观察到的成交。Fomo 占比确认低于15%或价格达到40%退出线时，会按规则清仓全部剩余模拟仓位。
+
+详细口径见 [100U 模拟观察说明](monitor/PORTFOLIO.md)。
+
+## 手续费口径
+
+当前回放采用 [Fomo 官方手续费说明](https://help.fomo.family/en/articles/14436214-trading-fees-on-fomo)：
+
+| 链 | 平台费 |
+|---|---|
+| BSC / BNB、Robinhood、Base、Monad、Ethereum | 每笔0.5%，网络费另计 |
+| Solana | `<5U` 固定0.10U；`5–47.5U` 为2%；`47.5–190U` 固定0.95U；`≥190U` 为0.5% |
+
+每次分批卖出按当笔金额重新计费。未取得可靠证据的网络费、代币税、池费、滑点和价格冲击会明确标为“未核验”，不会假设为零。因此页面展示的是平台费后估算结果，不是全部成本后的真实盈亏。
+
+## 数据和运行结构
+
+```mermaid
+flowchart LR
+    A[GMGN 多链热搜] --> B[Windvane 按 CA 核验]
+    B --> C[首次合格基线]
+    C --> D[SQLite 样本与事件]
+    D --> E[100U 策略回放]
+    D --> F[本机 HTML 工作台]
+    D --> G[飞书]
+    D --> H[Telegram]
+    E --> I[过往监测与曲线复盘]
+```
+
+- 服务地址：`127.0.0.1:8765`
+- 运行目录：`~/Library/Application Support/FomoMonitor/`
+- 本机配置：`data/config.json`，保存权限为600
+- 事件与样本：`data/monitor.sqlite3`
+- LaunchAgent：`~/Library/LaunchAgents/club.local.fomo-monitor.plist`
+- 自动化对接：[monitor/INTEGRATION.md](monitor/INTEGRATION.md)
+- 可复用监测提示词：[monitor/automation](monitor/automation)
+
+配置、凭证、数据库和服务日志均在 `.gitignore` 中，不应提交到公开仓库。不要把本机8765端口转发到公网。
+
+## 更新与测试
+
+工作台每6小时检查仓库中的 `VERSION`，只提示新版本，不会自动覆盖本机代码、数据库或连接凭证。
+
+```bash
+git pull
+python3 monitor/install.py
+cd monitor
+python3 -m unittest discover -v
+```
+
+更新内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开发者
 
 **David小鱼**
 
-- 微信：dragon-yu-171728
+- 微信：`dragon-yu-171728`
 - 公众号：自家的鱼鱼 / Claworld
-- X：[Shark1996_](https://x.com/shark1996_)
+- X：[@Shark1996_](https://x.com/shark1996_)
 - YouTube：[@Singularity2026](https://www.youtube.com/@Singularity2026)
 - 小红书：[David小鱼](https://xhslink.com/m/6WBQosGc8F6)
+
+---
+
+如果这个项目对你的观察和复盘有帮助，可以在 GitHub 点一个 Star。它能让更多人找到这个本机工具。
