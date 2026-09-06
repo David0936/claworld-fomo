@@ -1,0 +1,21 @@
+# 100U 模拟收益对接
+
+用户要求从首次满足年龄1–7天、市值200K–500K、Windvane Fomo下界≥15%的观测开始，按每标的100U回放三套策略。原始50U历史日志不改写；100U是新的对比回放，不是真实成交。
+
+首次命中先 `python3 monitor/bridge.py baseline 文件.json`。JSON字段：name、chain、ca、observed_at（真实ISO含时区）、price（真实读数，严禁市值直接冒充价格）、market_cap（符合初筛时的美元值）、age_days、verified:true、source:"windvane"、fomo_ratio_lower（百分数如17.1），可附fomo_ratio_upper、fomo_holders、price_estimated（默认false）、note（来源/缺失/区间说明）。基线不可覆盖。随后原有event入队照常。
+
+每轮对已登记代币刷新真实价格（即使不再满足初筛市值也需跟踪），使用 `python3 monitor/bridge.py sample 文件.json` 写入：chain、ca、observed_at、price、source（如windvane、fomo、gmgn）、fomo_ratio_lower/upper（未核验则不填）、fomo_holders（未核验则不填）、confirmation:false（手动/短周期采样），price_estimated:false，以及note。定时两小时核验才可confirmation:true，程序还会限制两次确认至少间隔两小时。不要携带上一轮Fomo数据充当新核验。仅观察到下界≥14.5%不能确认低于15%；退出需要upper<15或人数低于峰值20%。
+
+全部已登记标的可通过本机 GET http://127.0.0.1:8765/api/portfolio 读取；或在monitor目录调用portfolio.report()。低于入场价50%的标的记终值，模拟清算并终止后续跟踪。模型1独立退出不影响其他模型仍未清仓的价格采样。
+
+无法获取新价格时不要制造sample，报告哪些标的待采样及原因。页面保留真实最后观测时间，初始一笔样本标为等待后续采样。
+
+手续费采用下方当前逐链平台费规则，其他未核验成本单列；费用计算由simulation.py负责，采样任务不手写或覆盖引擎账本。每次卖出逐笔扣费；剩余仓位假设清算费用单独显示，不混为已付费用。三个模型为平行比较，不能把四个分支的本金或收益相加。
+
+WOOD特别说明：100U回放以2026-09-06约00:20首次完整核验价0.0003414开始；此前09-05 22:58仅候选且价格估算，不作为本次合格入场。历史估算价格可保留price_estimated:true；时间近似在note标明。
+
+
+## 当前费用规则（取代此前统一6%假设）
+
+按每个标的所在链采用当前官方平台手续费规则（2026-09-06核查：https://help.fomo.family/en/articles/14436214-trading-fees-on-fomo）：BSC/BNB、Robinhood、Base、Monad、Ethereum每笔0.5%，网络费另计；Solana单笔<5U固定0.10U、5–47.5U为2%、47.5–190U固定0.95U、≥190U为0.5%，Solana网络费由平台承担。每次分批卖出按实际模拟卖出金额重新计费，回本按平台费后净收金额反解。未核验的网络费、代币买卖税、池费、滑点及价格冲击不能宣称已计入，也不能标为实测0。未验证邀请码或特殊代币优惠时不应用优惠。展示为平台费后估算收益，非全部费用后的真实盈亏。
+采样时逐个检查该关注对象可见的费用信息；将官方规则、网络费/买卖税是否可核验及来源URL写入sample.note，未知明确写未知，严禁使用买入/卖出按钮执行交易来核验。页面默认由引擎按链和逐笔金额计算平台费；其他费用没有可靠证据时单列未计入。

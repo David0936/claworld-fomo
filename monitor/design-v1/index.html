@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fomo · 信号监测</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<body><main>
+<header><div class="brand">◉ FOMO <span>SIGNAL MONITOR</span></div><div id="user">本机工作台</div></header>
+<section class="hero"><div><div class="eyebrow">持续观察 · 有信号即推送</div><h1>让合适的信号<br>主动找到你。</h1><p>沿用 GMGN 热搜筛选与 Windvane 核验。<br>命中后立即推送到飞书、Telegram。</p></div><div class="rules"><div>筛选条件</div><strong>$200K — $500K</strong><p>代币年龄 1–7 天 · Fomo 持仓 ≥15%</p><hr><p>15%–20% 观察信号<br>超过 20% 强信号</p><small>仅使用 Windvane 核验值；区间使用下界。<br>仅监测与模拟策略，不执行交易。</small></div></section>
+<section class="stats"><article><label>行情核验状态</label><h2 id="scanStatus">等待连接</h2><p id="scanDetail"></p><small id="scanTime"></small></article><article><label>消息通道</label><h2 id="deliveryStatus">尚未配置</h2><p id="deliveryDetail">配置后自动推送新事件</p></article><article><label>推送队列</label><h2><span id="pending">0</span><small> 待发送</small></h2><p><span id="sent">0</span> 条已完成全部通道推送</p></article></section>
+<section class="workspace"><div class="feed"><div class="section-head"><h2>信号与推送记录</h2><button id="refresh">立即请求行情核验</button></div><p class="hint">页面每 5 秒更新；行情由原 Codex 自动化执行。请求后需等待实际扫描完成。</p><div id="refreshState" class="hint"></div><div id="events"></div><div class="section-head"><h2>已有监测档案</h2></div><div id="records"></div></div>
+<aside><h2>连接消息通道</h2><p class="hint">沿用 Claworld Monitor 的机器人连接方式。飞书、Telegram 可同时推送。密钥仅存本机，保存后不回显。</p>
+<form id="settings">
+<div class="channel-title"><h3>飞书群机器人</h3><label class="check"><input id="feishuEnabled" type="checkbox" name="feishu_enabled" checked> 启用</label></div>
+<p class="hint">在飞书群添加自定义机器人，复制 Webhook 即可。无需创建飞书登录应用。</p>
+<label for="webhook">Webhook <span id="hasWebhook"></span></label><input id="webhook" type="password" name="webhook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…" autocomplete="off">
+<label for="signingSecret">签名密钥（可选）</label><input id="signingSecret" type="password" name="signing_secret" autocomplete="off">
+<p id="feishuChannel" class="hint">等待配置</p><button type="button" id="testFeishu" class="secondary">测试飞书推送</button>
+<div class="channel-title"><h3>Telegram</h3><label class="check"><input id="telegramEnabled" type="checkbox" name="telegram_enabled" checked> 启用</label></div>
+<p class="hint">找 <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather</a> 创建机器人，粘贴 Bot Token，保存后验证登录。也可直接填写旧工具中的 Chat ID。</p>
+<label for="telegramToken">Bot Token <span id="hasTelegram"></span></label><input id="telegramToken" type="password" name="telegram_token" placeholder="123456789:…" autocomplete="off">
+<label for="telegramChat">Chat ID（验证登录后自动填入）</label><input id="telegramChat" name="telegram_chat_id" placeholder="私聊 ID / 群负数 ID / @频道名" autocomplete="off">
+<small id="savedChat"></small><p id="telegramChannel" class="hint">等待配置</p>
+<button type="button" id="telegramStart" class="secondary">Telegram 登录 / 绑定本人</button>
+<div id="telegramBinding" hidden><p class="hint">1. 打开机器人并点击 Start<br>2. 回来点击“完成验证”</p><a id="telegramLink" class="button" target="_blank" rel="noreferrer">打开 Telegram 机器人 ↗</a><button type="button" id="telegramFinish" class="secondary">完成验证</button><small>验证链接 10 分钟有效，请勿分享。已有 Webhook 的机器人请直接填 Chat ID。</small></div>
+<button type="button" id="testTelegram" class="secondary">测试 Telegram 推送</button>
+<details><summary>高级：飞书账号登录与解绑</summary><p class="hint">仅需要飞书个人推送时配置。群机器人方式不需要以下应用凭证。</p><label for="appId">App ID</label><input id="appId" name="app_id" autocomplete="off"><label for="appSecret">App Secret</label><input id="appSecret" type="password" name="app_secret" autocomplete="off"><label>OAuth 回调地址</label><code>http://127.0.0.1:8765/auth/callback</code><p class="hint">首次登录绑定个人接收人。已填写群 Webhook 时优先发群。</p><label class="check"><input type="checkbox" name="clear_webhook"> 清除飞书群 Webhook</label><label class="check"><input type="checkbox" name="clear_telegram"> 清除 Telegram 连接</label><a id="login" class="button" href="/auth/login">飞书账号登录</a><small id="oauthStatus"></small></details>
+<button type="submit" class="primary">保存连接设置</button></form>
+<p class="hint">先保存，再测试。已送达通道不会因为另一个通道失败而重复发送。保持电脑唤醒及行情网站登录。</p></aside></section>
+<footer>本机服务 · 127.0.0.1:8765 <span id="connection"></span></footer>
+</main><div id="toast" role="status" hidden></div></body></html>

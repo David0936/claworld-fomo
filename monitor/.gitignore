@@ -1,0 +1,15 @@
+data/
+__pycache__/
+*.pyc
+.DS_Store
+config.json
+*.log
+*-hit-*.json
+hit-*.json
+baseline-*.json
+sample-*.json
+milestone-*.json
+risk-*.json
+recovery-*.json
+outage-*.json
+stopped-*.json
