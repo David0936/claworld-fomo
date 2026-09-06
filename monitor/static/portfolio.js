@@ -13,7 +13,7 @@ async function loadPortfolio(){
   if(!Number.isFinite(buy)||!Number.isFinite(sell)||buy<0||buy>=100||sell<0||sell>=100)throw Error('成本比例需为0至99之间的数值');
   const r=await fetch('/api/portfolio');if(!r.ok)throw Error('无法读取模拟账本');
   const data=await r.json();const key=JSON.stringify(data);portfolioData=data;
-  if(key!==portfolioKey){portfolioKey=key;renderPortfolio();}
+  if(key!==portfolioKey){portfolioKey=key;renderPortfolio();renderHistory();}
   $('portfolioStatus').textContent='每标的100U · 按已记录价格回放 · '+new Date().toLocaleTimeString('zh-CN')+'同步';
  }catch(e){$('portfolioStatus').textContent=e.message+'；请保留上次结果，等待服务恢复';}finally{portfolioBusy=false;}
 }
@@ -60,6 +60,27 @@ function renderPortfolio(){
   if(portfolioOpen.has(t.id)){const expanded=el('tr','model-expanded'),td=el('td');td.colSpan=7;td.append(tokenDetail(t));expanded.append(td);body.append(expanded);}
  }
  table.append(body);wrap.append(table);$('portfolioTable').append(wrap);
+}
+function priceCurve(t){
+ const samples=t.samples.filter(s=>Number.isFinite(s.price)),prices=samples.map(s=>s.price),w=760,h=190,p=22;
+ const root=el('div','history-chart');
+ if(!prices.length)return root;
+ const low=Math.min(...prices,t.entry.price*.60),high=Math.max(...prices,t.entry.price),span=high-low||high*.01||1;
+ const x=i=>p+(w-p*2)*(samples.length===1?.5:i/(samples.length-1)),y=v=>p+(h-p*2)*(high-v)/span;
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.setAttribute('role','img');svg.setAttribute('aria-label',t.name+' 历史价格曲线');
+ const stop=document.createElementNS(svg.namespaceURI,'line');for(const [k,v] of Object.entries({x1:p,x2:w-p,y1:y(t.entry.price*.60),y2:y(t.entry.price*.60)}))stop.setAttribute(k,v);stop.setAttribute('class','stop-line');svg.append(stop);
+ const path=document.createElementNS(svg.namespaceURI,'polyline');path.setAttribute('points',samples.map((s,i)=>x(i)+','+y(s.price)).join(' '));path.setAttribute('class','price-line');svg.append(path);root.append(svg);
+ const meta=el('div','chart-meta');meta.append(el('span','',`首次 ${fmtPrice(t.entry.price)}`),el('span','',`最高 ${fmtPrice(Math.max(...prices))}`),el('span','',`最低 ${fmtPrice(Math.min(...prices))}`),el('span','',`${samples.length} 个观测点`));root.append(meta);return root;
+}
+function renderHistory(){
+ if(!portfolioData)return;const rows=portfolioData.history||[],root=$('historyList');root.replaceChildren();$('historyCount').textContent=rows.length;
+ if(!rows.length){root.append(el('div','empty','暂无退出主清单的标的'));return;}
+ for(const t of rows){
+  const card=el('article','history-card'),head=el('div','history-head'),identity=el('div');identity.append(el('h2','',t.name),el('p','',t.chain+' · '+t.ca));
+  const change=t.archive.trigger_change_percent;head.append(identity,el('span','history-reason',t.archive.kind==='price_stop'?'跌幅退出 '+fmtPct(change):'资格退出'));card.append(head,priceCurve(t));
+  const note=el('p','history-note',t.archive.reason+' · '+new Date(t.archive.archived_at).toLocaleString('zh-CN')+' · 记录与模拟数据均保留');card.append(note);
+  const detail=el('details','history-detail');detail.append(el('summary','','查看完整模拟账本与观测记录'),tokenDetail(t));card.append(detail);root.append(card);
+ }
 }
 function tokenDetail(t){
  const root=el('div','token-detail');root.append(el('h3','',t.name+' · 100U 模拟账本'),el('p','fee-explainer','入场 '+t.entry.observed_at+'，最新采样 '+t.latest.observed_at+'。'+(t.entry.note||'')),el('code','',t.ca));

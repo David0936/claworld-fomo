@@ -41,3 +41,14 @@ class PortfolioTests(unittest.TestCase):
   self.assertEqual(state['ineligible_streak'],2)
   self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,False,'r2'),point(3,False,'r3')])['status'],'removed')
   self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,True,'r2')])['ineligible_streak'],0)
+
+ def test_forty_percent_decline_moves_token_to_history_with_samples(self):
+  portfolio.register(self.base)
+  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T02:00:00+08:00',price=.61,source='gmgn'))
+  self.assertEqual(len(portfolio.report()['tokens']),1)
+  portfolio.add_sample(dict(self.base,observed_at='2026-09-05T03:00:00+08:00',price=.60,source='gmgn'))
+  report=portfolio.report()
+  self.assertEqual(report['tokens'],[])
+  self.assertEqual(len(report['history']),1)
+  self.assertEqual(report['history'][0]['archive']['kind'],'price_stop')
+  self.assertEqual(len(report['history'][0]['samples']),3)

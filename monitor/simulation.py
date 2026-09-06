@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _RATIO_EXIT = 15.0
 _HOLDER_RETENTION = 0.20
-_STOP_MULTIPLE = 0.50
+_STOP_MULTIPLE = 0.60
 _RECOVER_MULTIPLE = 2.0
 _RUNNER_MULTIPLE = 2.5
 _HALF_MULTIPLE = 4.0
@@ -244,7 +244,7 @@ class _Ledger:
         return self.cash + self.sell_fee.net(gross)
 
     def _stop_if_needed(self, sample: _Sample) -> bool:
-        if sample.price >= self.entry_price * _STOP_MULTIPLE:
+        if sample.price > self.entry_price * _STOP_MULTIPLE:
             return False
         if self.units > 0:
             self._sell(sample, self.units, "stop_loss")

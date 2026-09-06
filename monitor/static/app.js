@@ -105,7 +105,7 @@ function renderEvents(){
     if(e.error)card.append(el('p','error',e.error));$('events').append(card);
   }
 }
-function showView(view){if(!['overview','archive','connect'].includes(view))view='overview';for(const n of document.querySelectorAll('.view'))n.hidden=n.id!=='view-'+view;for(const n of document.querySelectorAll('.nav-item'))n.classList.toggle('active',n.dataset.view===view);window.scrollTo({top:0,behavior:'instant'});$('viewName').textContent={overview:'信号总览',archive:'监测档案',connect:'消息连接'}[view];}
+function showView(view){if(!['overview','history','archive','connect'].includes(view))view='overview';for(const n of document.querySelectorAll('.view'))n.hidden=n.id!=='view-'+view;for(const n of document.querySelectorAll('.nav-item'))n.classList.toggle('active',n.dataset.view===view);window.scrollTo({top:0,behavior:'instant'});$('viewName').textContent={overview:'信号总览',history:'过往监测',archive:'监测档案',connect:'消息连接'}[view];}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>{location.hash=b.dataset.view;showView(b.dataset.view);});
 window.addEventListener('hashchange',()=>showView(location.hash.slice(1)));showView(location.hash.slice(1));
 for(const b of document.querySelectorAll('[data-filter]'))b.addEventListener('click',()=>{activeFilter=b.dataset.filter;for(const n of document.querySelectorAll('[data-filter]'))n.classList.toggle('selected',n===b);renderEvents();});

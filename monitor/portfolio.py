@@ -119,27 +119,47 @@ def watch_state(observations):
             'reason':latest.get('eligibility_reason') if streak and latest else '',
             'last_round':latest.get('watch_round') if latest else None}
 
+def archive_state(meta, observations, watch):
+    """Return the first terminal archive trigger while preserving every observation."""
+    stop_price=meta['price']*.60
+    breach=next((sample for sample in observations if sample['price']<=stop_price),None)
+    if breach:
+        decline=(breach['price']/meta['price']-1)*100
+        return {'archived':True,'reason':'相对首次合格价下跌达到40%',
+                'kind':'price_stop','archived_at':breach['observed_at'],
+                'trigger_price':breach['price'],'trigger_change_percent':decline}
+    if watch['status']=='removed':
+        return {'archived':True,'reason':watch['reason'] or '连续3轮不再符合筛选规则',
+                'kind':'eligibility','archived_at':observations[-1]['observed_at'],
+                'trigger_price':observations[-1]['price'],
+                'trigger_change_percent':(observations[-1]['price']/meta['price']-1)*100}
+    return {'archived':False}
+
 def report(buy_fee=.06,sell_fee=.06,official=True):
     from simulation import simulate
     number(buy_fee,'buy_fee',0,.99);number(sell_fee,'sell_fee',0,.99)
     with connect() as db:
         tokens=[(r['id'],json.loads(r['metadata'])) for r in db.execute('SELECT * FROM tokens')]
         samples=[(r['token_id'],json.loads(r['payload'])) for r in db.execute('SELECT * FROM samples')]
-    rows=[];removed=[]
+    rows=[];history=[]
     for tid,meta in tokens:
         observations=sorted([p for key,p in samples if key==tid],key=lambda p:timestamp(p['observed_at'])[1])
         profile=fee_profile(meta['chain'])
         result=simulate(observations,principal=100,buy_fee=buy_fee,sell_fee=sell_fee,fee_schedule=profile['schedule'] if official else None)
         latest=observations[-1]
         watch=watch_state(observations)
+        archive=archive_state(meta,observations,watch)
         row={'id':tid,'name':meta['name'],'chain':meta['chain'],'ca':meta['ca'],'entry':meta,
                      'latest':latest,'awaiting_sample':len(observations)==1,'stale':time.time()-timestamp(latest['observed_at'])[1]>7200,
-                     'samples':observations,'simulation':result,'fees':profile,'watch':watch}
-        if watch['status']=='removed': removed.append({'id':tid,'name':meta['name'],'reason':watch['reason']})
+                     'samples':observations,'simulation':result,'fees':profile,'watch':watch,'archive':archive}
+        if archive['archived']: history.append(row)
         else: rows.append(row)
     if rows:
         newest=max(rows,key=lambda row:timestamp(row['entry']['observed_at'])[1])['id']
         for row in rows: row['latest_entry']=row['id']==newest
     rows.sort(key=lambda r:timestamp(r['latest']['observed_at'])[1],reverse=True)
+    history.sort(key=lambda r:timestamp(r['archive']['archived_at'])[1],reverse=True)
     return {'principal':100,'fee_mode':'official_platform' if official else 'custom','buy_fee':buy_fee,'sell_fee':sell_fee,'tokens':rows,
-            'removed':removed,'scope':'依据已记录采样回放；非真实成交、非连续行情。未核验实际gas、税费与滑点。'}
+            'history':history,
+            'removed':[{'id':r['id'],'name':r['name'],'reason':r['archive']['reason']} for r in history],
+            'scope':'依据已记录采样回放；非真实成交、非连续行情。未核验实际gas、税费与滑点。'}
