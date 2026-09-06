@@ -20,6 +20,10 @@ Honor user-supplied thresholds. Otherwise use:
 
 Ask only when a missing choice materially changes the result. Interpret “跌破现有价格的50%” as below 50% of the first-alert price unless the user defines another baseline.
 
+## First-time setup
+
+When the user asks to install or configure the monitor, follow the repository's `AI_SETUP.md` in order. Open the Fomo referral URL `https://fomo.family/r/PurePastMacaw` first, then GMGN, Windvane, Feishu custom-bot setup, Telegram BotFather, and finally the local connection page. State that the Fomo URL is David小鱼's referral link and may reward the author. Wait for the user to finish credentials, CAPTCHA, wallet login, or OAuth on each site; never enter, expose, or copy those secrets yourself.
+
 ## Screening workflow
 
 1. Use the user's logged-in browser when authentication is required. Check that the visible account state is authenticated before querying Windvane.

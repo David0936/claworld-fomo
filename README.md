@@ -4,7 +4,7 @@
   <p><strong>从首次命中，到退出复盘的本机 Fomo 信号监测工作台</strong></p>
   <p>GMGN 多链初筛 · Windvane 核验 · 100U 策略回放 · 飞书 / Telegram 推送</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.5.1-606AF7" alt="Version 0.5.1">
+    <img src="https://img.shields.io/badge/version-0.5.2-606AF7" alt="Version 0.5.2">
     <img src="https://img.shields.io/badge/Python-标准库-3776AB" alt="Python standard library">
     <img src="https://img.shields.io/badge/runtime-macOS-111111" alt="macOS">
     <img src="https://img.shields.io/badge/trading-仅模拟-80D9B1" alt="Simulation only">
@@ -12,6 +12,8 @@
 </div>
 
 > 这是一个运行在个人电脑上的观察工具。它记录真实核验结果、模拟策略和消息投递，不连接钱包，也不执行真实交易。
+
+使用 [David小鱼的 Fomo 邀请链接](https://fomo.family/r/PurePastMacaw) 注册或登录。该链接是项目作者邀请码，使用后作者可能获得平台奖励。
 
 ![Fomo Monitor 信号总览](docs/assets/workbench-overview.png)
 
@@ -95,6 +97,15 @@ chmod +x install-agent-skill.sh
 
 也可以只安装一个平台，例如 `./install-agent-skill.sh codex` 或 `./install-agent-skill.sh workbuddy`。目标目录、手动安装方式、调用提示词和定时任务说明见 [Agent Skill 安装指南](AGENT_INSTALL.md)。
 
+希望由 AI 按顺序完成安装并逐个打开注册网站：
+
+```bash
+chmod +x setup-with-agent.sh
+./setup-with-agent.sh all
+```
+
+详细顺序和完成标准见 [AI Agent 完整安装流程](AI_SETUP.md)。
+
 ## 飞书与 Telegram
 
 工作台的“消息连接”页面可以同时启用两个通道，每个通道独立记录发送状态和失败重试。
@@ -168,6 +179,7 @@ flowchart LR
 - 可复用监测提示词：[monitor/automation](monitor/automation)
 - Agent Skill 源码：[skills/fomo-signal-tracker](skills/fomo-signal-tracker)
 - 多 Agent 安装指南：[AGENT_INSTALL.md](AGENT_INSTALL.md)
+- AI 逐步安装与网站注册：[AI_SETUP.md](AI_SETUP.md)
 
 配置、凭证、数据库和服务日志均在 `.gitignore` 中，不应提交到公开仓库。不要把本机8765端口转发到公网。
 

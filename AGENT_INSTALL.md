@@ -43,3 +43,14 @@ python3 monitor/install.py
 ```
 
 定时运行需要在所用 Agent 中额外建立周期任务。Codex 用户可直接要求：“每5分钟按照 fomo-signal-tracker 执行监测，状态无变化时保持静默”。
+
+## 由 AI 引导完成首次配置
+
+需要 Agent 从安装一路带着完成网站注册和消息连接时，运行：
+
+```bash
+chmod +x setup-with-agent.sh
+./setup-with-agent.sh all
+```
+
+脚本会逐个打开 Fomo 邀请注册、GMGN、Windvane、飞书机器人和 Telegram BotFather，每一步完成后按回车才继续。完整的 Agent 执行清单见 [AI_SETUP.md](AI_SETUP.md)。

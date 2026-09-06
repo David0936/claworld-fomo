@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.5.2 - 2026-09-06
+
+- 增加 David小鱼的 Fomo 邀请注册链接并明确作者奖励说明。
+- 增加面向 AI Agent 的完整安装清单，以及依次打开 Fomo、GMGN、Windvane、飞书和 Telegram 的引导脚本。
+
 ## 0.5.1 - 2026-09-06
 
 - 将完整 `fomo-signal-tracker` Skill、references、策略脚本和 Codex 元数据纳入仓库。
