@@ -32,8 +32,13 @@ def normalized_sample(sample):
     if sample.get('fomo_holders') is not None:number(sample['fomo_holders'],'fomo_holders',0)
     if sample.get('fomo_ratio_lower') is not None and sample.get('fomo_ratio_upper') is not None and sample['fomo_ratio_upper']<sample['fomo_ratio_lower']:
         raise ValueError('Fomo占比区间上下界矛盾')
-    for key in ('confirmation','price_estimated'):
+    for key in ('confirmation','price_estimated','watch_eligible'):
         if key in sample and not isinstance(sample[key],bool):raise ValueError('标记必须为布尔值')
+    if 'watch_eligible' in sample:
+        if not isinstance(sample.get('watch_round'),str) or not sample['watch_round'].strip():
+            raise ValueError('清单资格判断必须包含watch_round')
+        if not isinstance(sample.get('eligibility_reason'),str) or not sample['eligibility_reason'].strip():
+            raise ValueError('清单资格判断必须说明原因')
     sample.setdefault('confirmation',False)
     sample.setdefault('price_estimated',False)
     return sample
@@ -72,7 +77,8 @@ def add_sample(sample):
         old=db.execute('SELECT payload FROM samples WHERE token_id=? AND observed_at=?',(tid,data['observed_at'])).fetchone()
         if old:
             saved=json.loads(old['payload'])
-            keys=('price','fomo_ratio_lower','fomo_ratio_upper','fomo_holders','source','price_estimated')
+            keys=('price','fomo_ratio_lower','fomo_ratio_upper','fomo_holders','source','price_estimated',
+                  'watch_eligible','watch_round','eligibility_reason')
             if any(saved.get(k)!=data.get(k) for k in keys):raise ValueError('同一时刻已有不同观测，禁止覆盖历史')
             return False
         prior=[json.loads(r['payload']) for r in db.execute('SELECT payload FROM samples WHERE token_id=?',(tid,))]
@@ -96,21 +102,44 @@ def fee_profile(chain):
                 source='https://help.fomo.family/en/articles/14436214-trading-fees-on-fomo',
                 checked_at='2026-09-06',basis='使用当前官方平台费规则回放，非历史成交实际费用',complete=False)
 
+def watch_state(observations):
+    """Three failed screening rounds hide a token without erasing history."""
+    rounds={}
+    for sample in observations:
+        if isinstance(sample.get('watch_eligible'),bool) and sample.get('watch_round'):
+            rounds[sample['watch_round']]=sample
+    ordered=sorted(rounds.values(),key=lambda item:timestamp(item['observed_at'])[1])
+    streak=0
+    for sample in reversed(ordered):
+        if sample['watch_eligible']: break
+        streak+=1
+    latest=ordered[-1] if ordered else None
+    status='removed' if streak>=3 else 'dropping' if streak else 'active'
+    return {'status':status,'ineligible_streak':streak,
+            'reason':latest.get('eligibility_reason') if streak and latest else '',
+            'last_round':latest.get('watch_round') if latest else None}
+
 def report(buy_fee=.06,sell_fee=.06,official=True):
     from simulation import simulate
     number(buy_fee,'buy_fee',0,.99);number(sell_fee,'sell_fee',0,.99)
     with connect() as db:
         tokens=[(r['id'],json.loads(r['metadata'])) for r in db.execute('SELECT * FROM tokens')]
         samples=[(r['token_id'],json.loads(r['payload'])) for r in db.execute('SELECT * FROM samples')]
-    rows=[]
+    rows=[];removed=[]
     for tid,meta in tokens:
         observations=sorted([p for key,p in samples if key==tid],key=lambda p:timestamp(p['observed_at'])[1])
         profile=fee_profile(meta['chain'])
         result=simulate(observations,principal=100,buy_fee=buy_fee,sell_fee=sell_fee,fee_schedule=profile['schedule'] if official else None)
         latest=observations[-1]
-        rows.append({'id':tid,'name':meta['name'],'chain':meta['chain'],'ca':meta['ca'],'entry':meta,
+        watch=watch_state(observations)
+        row={'id':tid,'name':meta['name'],'chain':meta['chain'],'ca':meta['ca'],'entry':meta,
                      'latest':latest,'awaiting_sample':len(observations)==1,'stale':time.time()-timestamp(latest['observed_at'])[1]>7200,
-                     'samples':observations,'simulation':result,'fees':profile})
+                     'samples':observations,'simulation':result,'fees':profile,'watch':watch}
+        if watch['status']=='removed': removed.append({'id':tid,'name':meta['name'],'reason':watch['reason']})
+        else: rows.append(row)
+    if rows:
+        newest=max(rows,key=lambda row:timestamp(row['entry']['observed_at'])[1])['id']
+        for row in rows: row['latest_entry']=row['id']==newest
     rows.sort(key=lambda r:timestamp(r['latest']['observed_at'])[1],reverse=True)
     return {'principal':100,'fee_mode':'official_platform' if official else 'custom','buy_fee':buy_fee,'sell_fee':sell_fee,'tokens':rows,
-            'scope':'依据已记录采样回放；非真实成交、非连续行情。未核验实际gas、税费与滑点。'}
+            'removed':removed,'scope':'依据已记录采样回放；非真实成交、非连续行情。未核验实际gas、税费与滑点。'}

@@ -30,3 +30,14 @@ class PortfolioTests(unittest.TestCase):
   self.assertAlmostEqual(t['simulation']['models'][0]['net_value'],99.0025)
   self.assertEqual(portfolio.fee_profile('sol')['schedule'],'solana')
   with self.assertRaises(ValueError):portfolio.fee_profile('unknown')
+
+ def test_watch_state_requires_three_distinct_failed_rounds(self):
+  def point(hour, eligible, round_id):
+   return dict(observed_at=f'2026-09-05T{hour:02d}:00:00+08:00', price=1,
+               source='windvane', watch_eligible=eligible, watch_round=round_id,
+               eligibility_reason='市值不在范围')
+  self.assertEqual(portfolio.watch_state([point(1,False,'r1')])['status'],'dropping')
+  state=portfolio.watch_state([point(1,False,'r1'),point(2,False,'r2')])
+  self.assertEqual(state['ineligible_streak'],2)
+  self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,False,'r2'),point(3,False,'r3')])['status'],'removed')
+  self.assertEqual(portfolio.watch_state([point(1,False,'r1'),point(2,True,'r2')])['ineligible_streak'],0)

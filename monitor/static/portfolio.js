@@ -46,7 +46,9 @@ function renderPortfolio(){
  for(const label of ['标的 / 链','首次 → 最新价格','区间涨跌','Fomo 占比','100U 平台费后盈亏','费用规则','对比'])tr.append(el('th','',label));head.append(tr);table.append(head);
  const body=el('tbody');
  for(const t of rows){
-  const m=modelOf(t),row=el('tr',t.awaiting_sample?'awaiting':''),asset=cell(t.name,t.chain);
+  const m=modelOf(t),classes=[t.awaiting_sample?'awaiting':'',t.latest_entry?'latest-entry':'',t.watch.status==='dropping'?'dropping':''].filter(Boolean).join(' '),row=el('tr',classes),asset=cell(t.name,t.chain);
+  if(t.latest_entry)asset.prepend(el('span','signal-badge latest-badge','最新入选 · 当前规则观察点'));
+  if(t.watch.status==='dropping')asset.prepend(el('span','signal-badge drop-badge','可能移出 '+t.watch.ineligible_streak+'/3轮'));
   const copy=el('button','ca-button',t.ca.slice(0,6)+'…'+t.ca.slice(-4)+' 复制');copy.title=t.ca;copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(t.ca);toast('完整CA已复制');}catch{toast('请在展开详情中复制完整CA');}});asset.append(copy);row.append(asset);
   row.append(cell(t.awaiting_sample?'待采样':fmtPrice(t.latest.price), '入场 '+fmtPrice(t.entry.price)+(t.latest.price_estimated?' · 最新为估算':'')));
   row.append(cell(t.awaiting_sample?'—':fmtPct((t.simulation.multiple-1)*100),t.awaiting_sample?'只有首次观测':t.simulation.multiple.toFixed(2)+'×',t.simulation.multiple>=1?'profit':'loss'));
@@ -54,7 +56,7 @@ function renderPortfolio(){
   row.append(cell(Number.isFinite(lower)?'≥'+lower+'%':'本轮未核验','初始 ≥'+t.entry.fomo_ratio_lower+'%'));
   row.append(cell(t.awaiting_sample?'待采样':signedU(m.pnl),t.awaiting_sample?'仅入场清算 '+fmtU(m.net_value):'估算清算值 '+fmtU(m.net_value),t.awaiting_sample?'':m.pnl>=0?'profit':'loss'));
   row.append(cell(t.fees.label,t.fees.schedule==='solana'?'100U买入平台费0.95U':'100U买入平台费0.50U'));
-  const action=el('td');const button=el('button','text-button',portfolioOpen.has(t.id)?'收起':'比较模型');button.addEventListener('click',()=>{portfolioOpen.has(t.id)?portfolioOpen.delete(t.id):portfolioOpen.add(t.id);renderPortfolio();});action.append(button,el('div','cell-sub',new Date(t.latest.observed_at).toLocaleTimeString('zh-CN')+(t.awaiting_sample?' · 首笔':t.stale?' · 已过期':' · 最后观测')));row.append(action);body.append(row);
+  const action=el('td');const button=el('button','text-button',portfolioOpen.has(t.id)?'收起':'比较模型');button.addEventListener('click',()=>{portfolioOpen.has(t.id)?portfolioOpen.delete(t.id):portfolioOpen.add(t.id);renderPortfolio();});action.append(button,el('div','cell-sub',new Date(t.latest.observed_at).toLocaleTimeString('zh-CN')+(t.awaiting_sample?' · 首笔':t.stale?' · 已过期':' · 最后观测')));if(t.watch.status==='dropping')action.append(el('div','cell-sub',t.watch.reason));row.append(action);body.append(row);
   if(portfolioOpen.has(t.id)){const expanded=el('tr','model-expanded'),td=el('td');td.colSpan=7;td.append(tokenDetail(t));expanded.append(td);body.append(expanded);}
  }
  table.append(body);wrap.append(table);$('portfolioTable').append(wrap);
