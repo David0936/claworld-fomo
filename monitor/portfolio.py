@@ -135,6 +135,16 @@ def archive_state(meta, observations, watch):
                 'trigger_change_percent':(observations[-1]['price']/meta['price']-1)*100}
     return {'archived':False}
 
+def fomo_exit_state(observations):
+    """A fully-below-15% interval is an immediate, persistent full-exit signal."""
+    hit=next((sample for sample in observations
+              if sample.get('fomo_ratio_upper') is not None
+              and sample['fomo_ratio_upper']<15),None)
+    if not hit:return {'triggered':False}
+    return {'triggered':True,'reason':'Fomo 持仓占比确认低于15% · 清仓全部信号',
+            'triggered_at':hit['observed_at'],'ratio_lower':hit.get('fomo_ratio_lower'),
+            'ratio_upper':hit.get('fomo_ratio_upper'),'trigger_price':hit['price']}
+
 def report(buy_fee=.06,sell_fee=.06,official=True):
     from simulation import simulate
     number(buy_fee,'buy_fee',0,.99);number(sell_fee,'sell_fee',0,.99)
@@ -149,9 +159,11 @@ def report(buy_fee=.06,sell_fee=.06,official=True):
         latest=observations[-1]
         watch=watch_state(observations)
         archive=archive_state(meta,observations,watch)
+        fomo_exit=fomo_exit_state(observations)
         row={'id':tid,'name':meta['name'],'chain':meta['chain'],'ca':meta['ca'],'entry':meta,
                      'latest':latest,'awaiting_sample':len(observations)==1,'stale':time.time()-timestamp(latest['observed_at'])[1]>7200,
-                     'samples':observations,'simulation':result,'fees':profile,'watch':watch,'archive':archive}
+                     'samples':observations,'simulation':result,'fees':profile,'watch':watch,'archive':archive,
+                     'fomo_exit':fomo_exit}
         if archive['archived']: history.append(row)
         else: rows.append(row)
     if rows:

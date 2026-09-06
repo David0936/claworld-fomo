@@ -183,9 +183,9 @@ class SimulationTests(unittest.TestCase):
             sample("2026-09-06T00:00:00+00:00", 10.0, fomo_holders=100,
                    fomo_ratio_lower=20, fomo_ratio_upper=22),
             sample("2026-09-06T00:01:00+00:00", 12.0, fomo_holders=19,
-                   fomo_ratio_lower=14, fomo_ratio_upper=14),
+                   fomo_ratio_lower=20, fomo_ratio_upper=22),
             sample("2026-09-06T00:02:00+00:00", 11.0, fomo_holders=18,
-                   fomo_ratio_lower=14, fomo_ratio_upper=14),
+                   fomo_ratio_lower=20, fomo_ratio_upper=22),
         ])
         model = self.model(result, "hold")
         self.assertEqual(model["status"], "exited")
@@ -195,11 +195,11 @@ class SimulationTests(unittest.TestCase):
 
     def test_missing_and_uncertain_ratio_reset_streak(self):
         result = simulate([
-            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_ratio_lower=20, fomo_ratio_upper=22),
-            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_ratio_lower=14, fomo_ratio_upper=14),
+            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_holders=100, fomo_ratio_lower=20, fomo_ratio_upper=22),
+            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_ratio_lower=14, fomo_ratio_upper=16),
             sample("2026-09-06T00:02:00+00:00", 13.0, fomo_ratio_lower=14, fomo_ratio_upper=16),
             sample("2026-09-06T00:03:00+00:00", 14.0),
-            sample("2026-09-06T00:04:00+00:00", 15.0, fomo_ratio_lower=14, fomo_ratio_upper=14),
+            sample("2026-09-06T00:04:00+00:00", 15.0, fomo_ratio_lower=15, fomo_ratio_upper=15),
         ])
         model = self.model(result, "hold")
         self.assertEqual(model["status"], "holding")
@@ -207,11 +207,12 @@ class SimulationTests(unittest.TestCase):
 
     def test_nonconfirmation_does_not_advance_hold_streak(self):
         result = simulate([
-            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_ratio_lower=20, fomo_ratio_upper=22),
-            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_ratio_lower=14, fomo_ratio_upper=14),
-            sample("2026-09-06T00:02:00+00:00", 13.0, fomo_ratio_lower=14, fomo_ratio_upper=14,
+            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_holders=100,
+                   fomo_ratio_lower=20, fomo_ratio_upper=22),
+            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_holders=19, fomo_ratio_lower=20, fomo_ratio_upper=22),
+            sample("2026-09-06T00:02:00+00:00", 13.0, fomo_holders=18, fomo_ratio_lower=20, fomo_ratio_upper=22,
                    confirmation=False),
-            sample("2026-09-06T00:03:00+00:00", 14.0, fomo_ratio_lower=14, fomo_ratio_upper=14),
+            sample("2026-09-06T00:03:00+00:00", 14.0, fomo_holders=18, fomo_ratio_lower=20, fomo_ratio_upper=22),
         ])
         model = self.model(result, "hold")
         self.assertEqual(model["status"], "exited")
@@ -235,6 +236,27 @@ class SimulationTests(unittest.TestCase):
             sample("2026-09-06T00:01:00+00:00", 6.1),
         ])
         self.assertNotEqual(self.model(at_boundary, "hold")["status"], "stopped")
+
+    def test_confirmed_fomo_below_fifteen_exits_every_model_immediately(self):
+        result = simulate([
+            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_ratio_lower=17, fomo_ratio_upper=18),
+            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_ratio_lower=12.5, fomo_ratio_upper=13),
+            sample("2026-09-06T00:02:00+00:00", 20.0, fomo_ratio_lower=20, fomo_ratio_upper=21),
+        ])
+        for model in result["models"]:
+            self.assertEqual(model["status"], "exited")
+            self.assertEqual(model["reason"], "fomo_below_15")
+            self.assertEqual(model["remaining_units"], 0)
+            self.assertEqual(model["trades"][-1]["price"], 12.0)
+            self.assertEqual(model["trades"][-1]["reason"], "fomo_below_15")
+
+    def test_ratio_interval_crossing_fifteen_does_not_force_exit(self):
+        result = simulate([
+            sample("2026-09-06T00:00:00+00:00", 10.0, fomo_ratio_lower=17, fomo_ratio_upper=18),
+            sample("2026-09-06T00:01:00+00:00", 12.0, fomo_ratio_lower=14, fomo_ratio_upper=16),
+        ])
+        for model in result["models"]:
+            self.assertNotEqual(model["reason"], "fomo_below_15")
 
     def test_time_sorting_and_duplicate_or_invalid_input(self):
         result = simulate([

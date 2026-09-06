@@ -52,3 +52,11 @@ class PortfolioTests(unittest.TestCase):
   self.assertEqual(len(report['history']),1)
   self.assertEqual(report['history'][0]['archive']['kind'],'price_stop')
   self.assertEqual(len(report['history'][0]['samples']),3)
+
+ def test_confirmed_fomo_exit_state_is_persistent(self):
+  points=[dict(observed_at='2026-09-05T01:00:00+08:00',price=1,source='windvane',fomo_ratio_lower=14,fomo_ratio_upper=16),
+          dict(observed_at='2026-09-05T02:00:00+08:00',price=1,source='windvane',fomo_ratio_lower=12.5,fomo_ratio_upper=13),
+          dict(observed_at='2026-09-05T03:00:00+08:00',price=1,source='windvane',fomo_ratio_lower=18,fomo_ratio_upper=19)]
+  state=portfolio.fomo_exit_state(points)
+  self.assertTrue(state['triggered'])
+  self.assertEqual(state['triggered_at'],points[1]['observed_at'])

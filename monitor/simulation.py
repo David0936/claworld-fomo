@@ -244,6 +244,15 @@ class _Ledger:
         return self.cash + self.sell_fee.net(gross)
 
     def _stop_if_needed(self, sample: _Sample) -> bool:
+        if _ratio_state(sample) is True:
+            if self.units > 0:
+                self._sell(sample, self.units, "fomo_below_15")
+            self.triggered = True
+            self.terminal = True
+            self.terminal_reason = "fomo_below_15"
+            self.trigger_observed_at = sample.observed_at
+            self.trigger_price = sample.price
+            return True
         if sample.price > self.entry_price * _STOP_MULTIPLE:
             return False
         if self.units > 0:
@@ -429,6 +438,9 @@ class _Ledger:
         if self.stop_triggered:
             status = "stopped"
             reason = "stop_loss"
+        elif self.terminal_reason == "fomo_below_15":
+            status = "exited"
+            reason = "fomo_below_15"
         elif self.kind == "hold" and self.terminal_reason == "fomo_retention":
             status = "exited"
             reason = "fomo_retention"
